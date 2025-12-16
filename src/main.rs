@@ -4,45 +4,68 @@ use ggez::{Context, GameResult};
 use ggez::glam::*;
 use ggez::input::keyboard::{KeyCode,KeyInput};
 
-struct PhysicsObject{
+struct Particle{
     position: Vec2,
     prev_position: Vec2,
     acceleration: Vec2
 }
 
-impl PhysicsObject{
+impl Particle{
     fn new(position: Vec2) -> Self{
-        PhysicsObject{ 
+        Particle{ 
             position, 
-            prev_position: position, 
+            prev_position: position + Vec2::new(-1., 0.), 
             acceleration: Vec2::ZERO
         }
     }
 
-    fn update(&mut self, dt: f32){
+    fn update(&mut self, mut dt: f32){
+        dt = if dt > 0.1 {0.0001}else {dt};
         let velocity = self.position - self.prev_position;
         self.prev_position = self.position;
-        self.position = self.position + velocity + self.acceleration * dt * dt;
+        self.position += velocity + self.acceleration * dt * dt;
         self.acceleration = Vec2::ZERO;
-        dbg!(velocity.y);
+        
     }
+
+    fn constraint(&mut self, win_width: f32, win_height: f32){
+        let velocity = self.position - self.prev_position;
+
+        if self.position.x - 50. < 0.{
+            self.position.x = 50.;
+            self.prev_position.x = self.position.x + velocity.x;
+
+        } else if self.position.x  + 50. > win_width{
+            self.position.x = win_width - 50.;
+            self.prev_position.x = self.position.x + velocity.x;
+        };
+
+        if self.position.y - 50. < 0.{
+            self.position.y = 50.;
+            self.prev_position.y = self.position.y + velocity.y;
+
+        }else if self.position.y + 50. > win_height{
+            self.position.y = win_height - 50.;
+            self.prev_position.y = self.position.y + velocity.y;
+        };
+    
+    }
+    
     fn accelerate(&mut self, acc: Vec2){
         self.acceleration += acc;
     }
 }
 
-
-
 struct MainState {
-    object: PhysicsObject,
+    objects: Vec<Particle>,
     gravity: Vec2,
 }
 
 impl MainState {
     fn new() -> GameResult<MainState> {
         let s = MainState{
-            object: PhysicsObject::new(Vec2::new(400., 100.)),
-            gravity: Vec2::new(0., 10.)
+            objects: Vec::new(),
+            gravity: Vec2::new(0., 300.)
         };
         Ok(s)
     }
@@ -50,9 +73,13 @@ impl MainState {
 
 impl event::EventHandler<ggez::GameError> for MainState {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
-        self.object.accelerate(self.gravity);
-        self.object.update(ctx.time.delta().as_secs_f32());
-        
+        let win_width = ctx.gfx.window().inner_size().width as f32;
+        let win_height = ctx.gfx.window().inner_size().height as f32;  
+
+        self.objects.iter_mut().for_each(|particle| particle.accelerate(self.gravity));
+        self.objects.iter_mut().for_each(|particle| particle.update(ctx.time.delta().as_secs_f32()));
+        self.objects.iter_mut().for_each(|particle| particle.constraint(win_width, win_height));
+
         Ok(())
     }
 
@@ -66,11 +93,11 @@ impl event::EventHandler<ggez::GameError> for MainState {
             ctx,
             graphics::DrawMode::fill(),
             Vec2::new(0.0, 0.0),
-            100.0,
+            50.0,
             0.1,
             Color::WHITE,
         )?;
-        canvas.draw(&circle, self.object.position);
+        self.objects.iter_mut().for_each(|particle| canvas.draw(&circle, particle.position));
 
         canvas.finish(ctx)?;
         Ok(())
@@ -80,6 +107,10 @@ impl event::EventHandler<ggez::GameError> for MainState {
         match input.keycode {
             Some(KeyCode::Escape) =>{
                 ctx.request_quit();
+                Ok(())
+            },
+            Some(KeyCode::Space) =>{
+                self.objects.push(Particle::new(Vec2::new(400., 100.)));
                 Ok(())
             },
             _ => Ok(()), // Do nothing
