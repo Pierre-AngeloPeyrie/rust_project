@@ -1,0 +1,19 @@
+   //let velocity = self.position - self.prev_position;
+
+       /*  if self.position.x - 50. < 0.{
+            self.position.x = 50.;
+            self.prev_position.x = self.position.x + velocity.x;
+
+        } else if self.position.x  + 50. > win_width{
+            self.position.x = win_width - 50.;
+            self.prev_position.x = self.position.x + velocity.x;
+        };
+
+        if self.position.y - 50. < 0.{
+            self.position.y = 50.;
+            self.prev_position.y = self.position.y + velocity.y;
+
+        }else if self.position.y + 50. > win_height{
+            self.position.y = win_height - 50.;
+            self.prev_position.y = self.position.y + velocity.y;
+        }; */
