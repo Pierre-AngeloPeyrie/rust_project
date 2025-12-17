@@ -21,7 +21,7 @@ impl MainState {
             gravity: Vec2::new(0., 300.),
             space_center: Vec2::new(400., 300.),
             space_radius: 290.,
-            particle_radius: 20.,
+            particle_radius: 10.,
 
         };
         Ok(s)
@@ -69,7 +69,7 @@ impl MainState {
 
 impl event::EventHandler<ggez::GameError> for MainState {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
-        let sub_steps = 4;
+        let sub_steps = 8;
         for _ in 0..sub_steps{
             self.update_positions(ctx.time.delta().as_secs_f32()/sub_steps as f32);
             self.constraint();
