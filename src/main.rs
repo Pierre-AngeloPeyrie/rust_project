@@ -35,14 +35,14 @@ impl MainState {
 
     fn add_particle(&mut self, position: Vec2){
         self.positions.push(position);
-        self.prev_positions.push(position + Vec2::new(-1., -0.5));
-        self.positions.push(position + Vec2::new(0., self.particle_radius * 2.));
-        self.prev_positions.push(position + Vec2::new(-1., -0.5)+ Vec2::new(0., self.particle_radius * 2.));
+        self.prev_positions.push(position + Vec2::new(-3., -0.5));
+        self.positions.push(position + Vec2::new(0., self.particle_radius * 5.));
+        self.prev_positions.push(position + Vec2::new(-3., -0.5)+ Vec2::new(0., self.particle_radius * 5.));
     }
 
     fn update_positions(&mut self, dt: f32){
         for i in 0..self.positions.len(){
-            let velocity = self.positions[i] - self.prev_positions[i];
+            let velocity = (self.positions[i] - self.prev_positions[i]);
             self.prev_positions[i] = self.positions[i];
             self.positions[i] += velocity + self.gravity * dt * dt;
         }        
@@ -87,9 +87,10 @@ impl event::EventHandler<ggez::GameError> for MainState {
         let win_width = ctx.gfx.window().inner_size().width as f32;
         let win_height = ctx.gfx.window().inner_size().height as f32;  
         let sub_steps = 2;
+        let sub_dt = ctx.time.delta().as_secs_f32()/(sub_steps as f32);
         for _ in 0..sub_steps{
             self.grid.update(&self.positions);
-            self.update_positions(ctx.time.delta().as_secs_f32()/sub_steps as f32);
+            self.update_positions(sub_dt);
             self.constraint(win_width, win_height);
             self.collisions();
         }
