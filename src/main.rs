@@ -11,54 +11,61 @@ use circular_buffer::CircularBuffer;
 mod misc;
 use misc::pos_win_from_rel;
 
+use std::sync::{Arc,RwLock};
+
 struct MainState {
-    positions: Vec<Vec2>,
+    positions: Arc<RwLock<Vec<Vec2>>>,
     prev_positions: Vec<Vec2>,
     gravity: Vec2,
     particle_radius: f32,
     fps_buffer: CircularBuffer,
-    grid: Grid,
+    grid: Arc<RwLock<Grid>>,
 }
 
 impl MainState {
     fn new(ctx: &Context, part_radius: f32) -> GameResult<MainState> {
         let s = MainState{
-            positions: Vec::new(),
+            positions: Arc::new(RwLock::new(Vec::new())),
             prev_positions: Vec::new(),
             gravity: Vec2::new(0., 300.),
             particle_radius: part_radius,
             fps_buffer: CircularBuffer::new(),
-            grid: Grid::new(ctx.gfx.window().inner_size().width as f32, ctx.gfx.window().inner_size().height as f32, part_radius*2.),
+            grid: Arc::new(RwLock::new(Grid::new(ctx.gfx.window().inner_size().width as f32, ctx.gfx.window().inner_size().height as f32, part_radius*2.),))
         };
         Ok(s)
     }
 
-    fn add_particle(&mut self, position: Vec2){
-        self.positions.push(position);
-        self.prev_positions.push(position + Vec2::new(-3., -0.5));
-        self.positions.push(position + Vec2::new(0., self.particle_radius * 5.));
-        self.prev_positions.push(position + Vec2::new(-3., -0.5)+ Vec2::new(0., self.particle_radius * 5.));
+    fn add_particle(&mut self, position: Vec2, number: usize){
+        for i in 0..number{
+            self.positions.write().unwrap().push(position + Vec2::new(0., self.particle_radius * 5. * (i as f32)));
+            self.prev_positions.push(position + Vec2::new(-3., -0.5) + Vec2::new(0., self.particle_radius * 5. * (i as f32)));
+        }        
     }
 
     fn update_positions(&mut self, dt: f32){
-        for i in 0..self.positions.len(){
-            let velocity = (self.positions[i] - self.prev_positions[i]);
-            self.prev_positions[i] = self.positions[i];
-            self.positions[i] += velocity + self.gravity * dt * dt;
+        let mut positions = self.positions.write().unwrap();
+        for i in 0..self.prev_positions.len(){
+            let velocity = positions[i] - self.prev_positions[i];
+            self.prev_positions[i] = positions[i];
+            positions[i] += velocity + self.gravity * dt * dt;
         }        
     }
 
     fn collisions(&mut self){
-        (1..(self.grid.get_num_columns() - 1)).for_each(|i| (1..(self.grid.get_num_rows() - 1)).for_each(|j| (0..3).for_each(|di| (0..3).for_each(|dj| {
-        for id1 in self.grid.get_cell(i, j){
-            for id2 in self.grid.get_cell(i + di - 1, j + dj - 1){ 
-                let collision_vector = self.positions[*id1] - self.positions[*id2];
+        let grid = self.grid.read().unwrap();
+        let mut positions = self.positions.write().unwrap();
+
+
+        (1..(grid.get_num_columns() - 1)).for_each(|i| (1..(grid.get_num_rows() - 1)).for_each(|j| (0..3).for_each(|di| (0..3).for_each(|dj| {
+        for id1 in grid.get_cell(i, j){
+            for id2 in grid.get_cell(i + di - 1, j + dj - 1){ 
+                let collision_vector = positions[*id1] - positions[*id2];
                 let distance = collision_vector.length();
                 if distance < 2. * self.particle_radius && id1 != id2{
                     let delta = 2. * self.particle_radius - distance;
                     let n = collision_vector/distance;
-                    self.positions[*id1] += 0.5 * delta * n;
-                    self.positions[*id2] -= 0.5 * delta * n;
+                    positions[*id1] += 0.5 * delta * n;
+                    positions[*id2] -= 0.5 * delta * n;
                 }
             }
         }
@@ -66,17 +73,19 @@ impl MainState {
     }
 
     fn constraint(&mut self, win_width: f32, win_height: f32){
-        for i in 0..self.positions.len(){     
-            if self.positions[i].x - self.particle_radius < 0.{
-                self.positions[i].x = self.particle_radius;
-            } else if self.positions[i].x  + self.particle_radius > win_width{
-                self.positions[i].x = win_width - self.particle_radius;
+        let mut positions = self.positions.write().unwrap();
+
+        for i in 0..self.prev_positions.len(){     
+            if positions[i].x - self.particle_radius < 0.{
+                positions[i].x = self.particle_radius;
+            } else if positions[i].x  + self.particle_radius > win_width{
+                positions[i].x = win_width - self.particle_radius;
             };
 
-            if self.positions[i].y - self.particle_radius < 0.{
-                self.positions[i].y = self.particle_radius;
-            }else if self.positions[i].y + self.particle_radius > win_height{
-                self.positions[i].y = win_height - self.particle_radius;
+            if positions[i].y - self.particle_radius < 0.{
+                positions[i].y = self.particle_radius;
+            }else if positions[i].y + self.particle_radius > win_height{
+                positions[i].y = win_height - self.particle_radius;
             };
         }
     }
@@ -88,10 +97,10 @@ impl event::EventHandler<ggez::GameError> for MainState {
         let win_height = ctx.gfx.window().inner_size().height as f32;  
         let sub_steps = 2;
         let sub_dt = ctx.time.delta().as_secs_f32()/(sub_steps as f32);
-        for _ in 0..sub_steps{
-            self.grid.update(&self.positions);
-            self.update_positions(sub_dt);
+        for _ in 0..sub_steps{           
+            self.update_positions(sub_dt);            
             self.constraint(win_width, win_height);
+            self.grid.write().unwrap().update(&self.positions.read().unwrap());
             self.collisions();
         }
         self.fps_buffer.push(1./ctx.time.delta().as_secs_f32());
@@ -112,9 +121,9 @@ impl event::EventHandler<ggez::GameError> for MainState {
             0.1,
             Color::WHITE,
         )?;
-        self.positions.iter().for_each(|position| canvas.draw(&circle, *position));
+        self.positions.read().unwrap().iter().for_each(|position| canvas.draw(&circle, *position));
 
-        canvas.draw(graphics::Text::new(format!("FPS : {:.0}, number of balls : {} ",self.fps_buffer.mean(), self.positions.len()) )
+        canvas.draw(graphics::Text::new(format!("FPS : {:.0}, number of balls : {} ",self.fps_buffer.mean(), self.prev_positions.len()) )
               .set_scale(20.),
               DrawParam::default()
               .dest(pos_win_from_rel(ctx, 0.01, 0.01))
@@ -132,7 +141,7 @@ impl event::EventHandler<ggez::GameError> for MainState {
                 Ok(())
             },
             Some(KeyCode::Space) =>{
-                self.add_particle(Vec2::new(100., 100.));
+                self.add_particle(Vec2::new(100., 100.),10);
                 Ok(())
             },
             _ => Ok(()), // Do nothing
