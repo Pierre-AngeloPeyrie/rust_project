@@ -9,7 +9,7 @@ use spacial_partition::Grid;
 mod circular_buffer;
 use circular_buffer::CircularBuffer;
 mod misc;
-use misc::pos_win_from_rel;
+use misc::{pos_win_from_rel,gen_vec_range};
 
 use std::sync::{Arc,RwLock,mpsc};
 use std::thread;
@@ -31,7 +31,7 @@ impl MainState {
             gravity: Vec2::new(0., 300.),
             particle_radius: part_radius,
             fps_buffer: CircularBuffer::new(),
-            grid: Arc::new(RwLock::new(Grid::new(ctx.gfx.window().inner_size().width as f32, ctx.gfx.window().inner_size().height as f32, part_radius*2.),))
+            grid: Arc::new(RwLock::new(Grid::new(ctx.gfx.window().inner_size().width as f32, ctx.gfx.window().inner_size().height as f32, part_radius*5.),))
         };
         Ok(s)
     }
@@ -46,28 +46,28 @@ impl MainState {
     fn update_positions(&mut self, dt: f32){
         let mut positions = self.positions.write().unwrap();
         for i in 0..self.prev_positions.len(){
-            let velocity = positions[i] - self.prev_positions[i];
+            let velocity = (positions[i] - self.prev_positions[i]).clamp_length_max(1.5);
             self.prev_positions[i] = positions[i];
             positions[i] += velocity + self.gravity * dt * dt;
         }        
     }
 
     fn collisions(&mut self){
-        /* let grid = self.grid.read().unwrap();
-        let mut positions = self.positions.write().unwrap(); */
         let (tx, rx) = mpsc::channel();
-        let n_threads = 1;
+        let n_threads = 7;
         let mut handles = Vec::new();
+        let mut ranges = gen_vec_range(n_threads, self.grid.read().unwrap().get_num_columns());
 
-        for _i in 0..n_threads{
+        for _ in 0..n_threads{
             let thread_tx = tx.clone();
             let radius = self.particle_radius;
             let grid_ref = Arc::clone(&self.grid);
             let positions_ref = Arc::clone(&self.positions);
+            let thread_range = ranges.pop().unwrap();
             handles.push(thread::spawn(move || {
                 let grid = grid_ref.read().unwrap();
                 let positions = positions_ref.read().unwrap();
-                (1..(grid.get_num_columns() - 1)).for_each(|i| (1..(grid.get_num_rows() - 1)).for_each(|j| (0..3).for_each(|di| (0..3).for_each(|dj| {
+                thread_range.for_each(|i| (1..(grid.get_num_rows() - 1)).for_each(|j| (0..3).for_each(|di| (0..3).for_each(|dj| {
                     for id1 in grid.get_cell(i, j){
                         for id2 in grid.get_cell(i + di - 1, j + dj - 1){ 
                             let collision_vector = positions[*id1] - positions[*id2];
@@ -83,11 +83,12 @@ impl MainState {
                 
             }));
         }
+        drop(tx);
+
         let mut new_positions = self.positions.read().unwrap().clone();
         for (id1, id2, delta, n) in rx{
             new_positions[id1] += 0.5 * delta * n;
             new_positions[id2] -= 0.5 * delta * n;
-        
         }
 
         for th in handles{
@@ -121,7 +122,7 @@ impl event::EventHandler<ggez::GameError> for MainState {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
         let win_width = ctx.gfx.window().inner_size().width as f32;
         let win_height = ctx.gfx.window().inner_size().height as f32;  
-        let sub_steps = 2;
+        let sub_steps = 8;
         let sub_dt = ctx.time.delta().as_secs_f32()/(sub_steps as f32);
         for _ in 0..sub_steps{           
             self.update_positions(sub_dt);            
@@ -179,6 +180,6 @@ impl event::EventHandler<ggez::GameError> for MainState {
 pub fn main() -> GameResult {
     let cb = ggez::ContextBuilder::new("super_simple", "ggez");
     let (ctx, event_loop) = cb.build()?;
-    let state = MainState::new(&ctx,10.)?;
+    let state = MainState::new(&ctx,2.)?;
     event::run(ctx, event_loop, state)
 }

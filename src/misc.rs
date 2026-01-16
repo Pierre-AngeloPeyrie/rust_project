@@ -23,15 +23,11 @@ fn channel_curve(angle: f32) -> f32{
 }
 
 pub fn gen_vec_range(n_part: usize, size: usize)->Vec<Range<usize>>{
-    let mut res = vec![1..size/n_part];
-    if size % n_part == 0{
-        (1..n_part).for_each(|i| res.push(size/n_part*i..size/n_part*(i+1)));
-    }else{
-        (1..n_part-1).for_each(|i| res.push(size/n_part*i..size/n_part*(i+1)));
-        res.push(size/n_part*(n_part-1)..size);
-        
-    };
-    res
+   let mut res = vec![1..size/n_part];
+   (1..n_part-1).for_each(|i| res.push(size/n_part*i..size/n_part*(i+1)));
+   res.push(size/n_part*(n_part-1)..(size-1));
+   
+   res
 }
 
 #[cfg(test)]
