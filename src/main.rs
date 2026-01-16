@@ -11,7 +11,8 @@ use circular_buffer::CircularBuffer;
 mod misc;
 use misc::pos_win_from_rel;
 
-use std::sync::{Arc,RwLock};
+use std::sync::{Arc,RwLock,mpsc};
+use std::thread;
 
 struct MainState {
     positions: Arc<RwLock<Vec<Vec2>>>,
@@ -52,24 +53,49 @@ impl MainState {
     }
 
     fn collisions(&mut self){
-        let grid = self.grid.read().unwrap();
-        let mut positions = self.positions.write().unwrap();
+        /* let grid = self.grid.read().unwrap();
+        let mut positions = self.positions.write().unwrap(); */
+        let (tx, rx) = mpsc::channel();
+        let n_threads = 1;
+        let mut handles = Vec::new();
 
-
-        (1..(grid.get_num_columns() - 1)).for_each(|i| (1..(grid.get_num_rows() - 1)).for_each(|j| (0..3).for_each(|di| (0..3).for_each(|dj| {
-        for id1 in grid.get_cell(i, j){
-            for id2 in grid.get_cell(i + di - 1, j + dj - 1){ 
-                let collision_vector = positions[*id1] - positions[*id2];
-                let distance = collision_vector.length();
-                if distance < 2. * self.particle_radius && id1 != id2{
-                    let delta = 2. * self.particle_radius - distance;
-                    let n = collision_vector/distance;
-                    positions[*id1] += 0.5 * delta * n;
-                    positions[*id2] -= 0.5 * delta * n;
-                }
-            }
+        for _i in 0..n_threads{
+            let thread_tx = tx.clone();
+            let radius = self.particle_radius;
+            let grid_ref = Arc::clone(&self.grid);
+            let positions_ref = Arc::clone(&self.positions);
+            handles.push(thread::spawn(move || {
+                let grid = grid_ref.read().unwrap();
+                let positions = positions_ref.read().unwrap();
+                (1..(grid.get_num_columns() - 1)).for_each(|i| (1..(grid.get_num_rows() - 1)).for_each(|j| (0..3).for_each(|di| (0..3).for_each(|dj| {
+                    for id1 in grid.get_cell(i, j){
+                        for id2 in grid.get_cell(i + di - 1, j + dj - 1){ 
+                            let collision_vector = positions[*id1] - positions[*id2];
+                            let distance = collision_vector.length();
+                            if distance < 2.*radius && id1 != id2{
+                                let delta = 2.*radius - distance;
+                                let n = collision_vector/distance;
+                                thread_tx.send((*id1, *id2, delta, n)).unwrap();
+                            }
+                        }
+                    }
+                }))));
+                
+            }));
         }
-        }))));
+        let mut new_positions = self.positions.read().unwrap().clone();
+        for (id1, id2, delta, n) in rx{
+            new_positions[id1] += 0.5 * delta * n;
+            new_positions[id2] -= 0.5 * delta * n;
+        
+        }
+
+        for th in handles{
+            th.join().unwrap();
+        }
+
+        *self.positions.write().unwrap() = new_positions;
+        
     }
 
     fn constraint(&mut self, win_width: f32, win_height: f32){
@@ -153,6 +179,6 @@ impl event::EventHandler<ggez::GameError> for MainState {
 pub fn main() -> GameResult {
     let cb = ggez::ContextBuilder::new("super_simple", "ggez");
     let (ctx, event_loop) = cb.build()?;
-    let state = MainState::new(&ctx,3.)?;
+    let state = MainState::new(&ctx,10.)?;
     event::run(ctx, event_loop, state)
 }
