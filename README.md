@@ -15,8 +15,8 @@ The goal of the project is to leverage rust's speed and fearless concurrency to 
 - [x] Add simple collisions to particles
 - [x] Implement FPS and particles counter
 - [x] Implement spatial partition with an homogenous grid
-- [ ] Implement multi-threading on collision solving
+- [x] Implement multi-threading on collision solving
 - [ ] Solve instability problem
-- [ ] Add more control on particle volume spawn
+- [x] Add more control on particle volume spawn
   
   

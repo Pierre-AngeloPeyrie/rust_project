@@ -21,6 +21,7 @@ struct MainState {
     particle_radius: f32,
     fps_buffer: CircularBuffer,
     grid: Arc<RwLock<Grid>>,
+    num_part_to_spawn : usize,
 }
 
 impl MainState {
@@ -31,7 +32,8 @@ impl MainState {
             gravity: Vec2::new(0., 300.),
             particle_radius: part_radius,
             fps_buffer: CircularBuffer::new(),
-            grid: Arc::new(RwLock::new(Grid::new(ctx.gfx.window().inner_size().width as f32, ctx.gfx.window().inner_size().height as f32, part_radius*5.),))
+            grid: Arc::new(RwLock::new(Grid::new(ctx.gfx.window().inner_size().width as f32, ctx.gfx.window().inner_size().height as f32, part_radius*5.),)),
+            num_part_to_spawn: 1,
         };
         Ok(s)
     }
@@ -55,7 +57,6 @@ impl MainState {
     fn collisions(&mut self){
         let (tx, rx) = mpsc::channel();
         let n_threads = 7;
-        let mut handles = Vec::new();
         let mut ranges = gen_vec_range(n_threads, self.grid.read().unwrap().get_num_columns());
 
         for _ in 0..n_threads{
@@ -64,7 +65,7 @@ impl MainState {
             let grid_ref = Arc::clone(&self.grid);
             let positions_ref = Arc::clone(&self.positions);
             let thread_range = ranges.pop().unwrap();
-            handles.push(thread::spawn(move || {
+            thread::spawn(move || {
                 let grid = grid_ref.read().unwrap();
                 let positions = positions_ref.read().unwrap();
                 thread_range.for_each(|i| (1..(grid.get_num_rows() - 1)).for_each(|j| (0..3).for_each(|di| (0..3).for_each(|dj| {
@@ -81,7 +82,7 @@ impl MainState {
                     }
                 }))));
                 
-            }));
+            });
         }
         drop(tx);
 
@@ -91,12 +92,7 @@ impl MainState {
             new_positions[id2] -= 0.5 * delta * n;
         }
 
-        for th in handles{
-            th.join().unwrap();
-        }
-
-        *self.positions.write().unwrap() = new_positions;
-        
+        *self.positions.write().unwrap() = new_positions;   
     }
 
     fn constraint(&mut self, win_width: f32, win_height: f32){
@@ -168,7 +164,11 @@ impl event::EventHandler<ggez::GameError> for MainState {
                 Ok(())
             },
             Some(KeyCode::Space) =>{
-                self.add_particle(Vec2::new(100., 100.),10);
+                self.add_particle(Vec2::new(100., 100.),self.num_part_to_spawn);
+                Ok(())
+            },
+            Some(KeyCode::LControl) =>{
+                self.num_part_to_spawn += 1;
                 Ok(())
             },
             _ => Ok(()), // Do nothing
