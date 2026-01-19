@@ -16,6 +16,7 @@ use std::thread;
 struct MainState {
     positions: Arc<RwLock<Vec<Vec2>>>,
     velocity: Vec<Vec2>,
+    forces: Vec<Vec2>,
     gravity: Vec2,
     particle_radius: f32,
     grid: Arc<RwLock<Grid>>,
@@ -27,6 +28,7 @@ impl MainState {
         let s = MainState{
             positions: Arc::new(RwLock::new(Vec::new())),
             velocity: Vec::new(),
+            forces: Vec::new(),
             gravity: Vec2::new(0., 300.),
             particle_radius: part_radius,
             grid: Arc::new(RwLock::new(Grid::new(ctx.gfx.window().inner_size().width as f32, ctx.gfx.window().inner_size().height as f32, part_radius*2.),)),
@@ -39,14 +41,16 @@ impl MainState {
         for i in 0..number{
             self.positions.write().unwrap().push(position + Vec2::new(0., self.particle_radius * 5. * (i as f32)));
             self.velocity.push(Vec2::new(300., 400.));
+            self.forces.push(Vec2::ZERO);
         }        
     }
 
     fn update_positions(&mut self, dt: f32){
         let mut positions = self.positions.write().unwrap();
         for i in 0..self.velocity.len(){
-            self.velocity[i] += self.gravity * dt;
+            self.velocity[i] += self.forces[i] + self.gravity * dt;
             positions[i] += self.velocity[i] * dt;
+            self.forces[i] = Vec2::ZERO;
         }        
     }
 
@@ -70,10 +74,10 @@ impl MainState {
                         for id2 in grid.get_cell(i + di - 1, j + dj - 1){ 
                             let collision_vector = positions[*id2] - positions[*id1];
                             let distance = collision_vector.length();
-                            if id1 != id2 && distance > eps && distance < 2.*radius{ 
+                            if id1 != id2 && distance > eps && distance < 3.*radius{ 
                                 let delta = 2.*radius - distance;
                                 let n = collision_vector.normalize() ;
-                                thread_tx.send((*id1, *id2, delta, n)).unwrap();
+                                thread_tx.send((*id1, *id2, delta, n, (1000./distance).clamp(0., 10.) * n)).unwrap();
                             }
                         }
                     }
@@ -85,31 +89,17 @@ impl MainState {
         drop(tx);
 
         let positions = self.positions.read().unwrap();
-        let mut new_positions = positions.clone();
-        
-        for (id1, id2, delta, n) in rx{
-            if n.is_nan(){
-                println!("qfvds");
-            }
-            
-            let v1 = n.dot(self.velocity[id1]);
-            let v2 =  n.dot(self.velocity[id2]);
-            let prop = (v1/(v1-v2)).clamp(0., 1.);
-
-            let momentum = v1 + v2;
-            let energy = v1*v1 + v2*v2;
-            let (b,c) = (
-                -2. * momentum, 
-                momentum*momentum - energy
-            );
-            
-            let new_v2 = (-b + f32::sqrt((b*b - 8.*c).abs()))/4.;
-            let new_v1 = momentum - new_v2;
+        let mut new_positions = positions.clone();        
+        for (id1, id2, delta, n, force) in rx{
         
             new_positions[id1] = positions[id1] - delta * n * 0.5;
+            self.forces[id1] -= force;
+            self.velocity[id1] *= 0.99;
+            
             new_positions[id2] = positions[id2] + delta * n * 0.5;
-            self.velocity[id1] += (new_v1 - v1) * n *0.5;
-            self.velocity[id2] += (new_v2 - v2 )* n *0.5;
+            self.forces[id2] += force;
+            self.velocity[id2] *= 0.99;
+
         }
         drop(positions);
 
@@ -211,8 +201,8 @@ impl event::EventHandler<ggez::GameError> for MainState {
 
 pub fn main() -> GameResult {
     let cb = ggez::ContextBuilder::new("super_simple", "ggez")
-                            .window_mode(ggez::conf::WindowMode::default().dimensions(50., 700.));
+                            .window_mode(ggez::conf::WindowMode::default().dimensions(1000., 700.));
     let (ctx, event_loop) = cb.build()?;
-    let state = MainState::new(&ctx,20.)?;
+    let state = MainState::new(&ctx,5.)?;
     event::run(ctx, event_loop, state)
 }

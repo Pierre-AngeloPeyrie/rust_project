@@ -29,7 +29,7 @@ impl Grid {
         for i in 0..entities.len(){
             let col = (entities[i].x / self.cell_size) as usize + 1;
             let row  = (entities[i].y / self.cell_size) as usize + 1;
-            if col <= self.get_num_columns() && row <= self.get_num_rows(){
+            if col < self.get_num_columns() && row < self.get_num_rows(){
                 self.columns[col][row].push(i);
             }
             
