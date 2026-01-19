@@ -27,7 +27,12 @@ impl Grid {
         self.columns.iter_mut().flatten().for_each(|cell| cell.clear()); 
 
         for i in 0..entities.len(){
-            self.columns[(entities[i].x / self.cell_size) as usize + 1][(entities[i].y / self.cell_size) as usize + 1].push(i);
+            let col = (entities[i].x / self.cell_size) as usize + 1;
+            let row  = (entities[i].y / self.cell_size) as usize + 1;
+            if col <= self.get_num_columns() && row <= self.get_num_rows(){
+                self.columns[col][row].push(i);
+            }
+            
         };   
     }  
 }

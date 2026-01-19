@@ -19,4 +19,3 @@ The goal of the project is to leverage rust's speed and fearless concurrency to 
 - [ ] Solve instability problem
 - [x] Add more control on particle volume spawn
   
-  
