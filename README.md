@@ -6,10 +6,13 @@ It simulates 2D colliding particles subject to gravity using a simple verlet int
 ## Goal
 The goal of the project is to leverage rust's speed and fearless concurrency to display as much colliding particles as possible.
 
+## Compilation
+For the best performance, use the `cargo build --release` flag when compiling the program.  
+
 ## Controls
-    - SPACE to spawn particles
-    - LEFT CTRL to increase the spawn rate
-    - ESC to close the program
+- SPACE to spawn particles
+- LEFT CTRL to increase the spawn rate
+- ESC to close the program
 
 ## Progress
 - [x] Setup the project with the dependencies
