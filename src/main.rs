@@ -6,7 +6,6 @@ use ggez::input::keyboard::{KeyCode,KeyInput};
 
 mod spacial_partition;
 use spacial_partition::Grid;
-mod circular_buffer;
 mod misc;
 use misc::{pos_win_from_rel,gen_vec_range};
 
