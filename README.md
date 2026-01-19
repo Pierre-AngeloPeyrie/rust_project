@@ -6,6 +6,11 @@ It simulates 2D colliding particles subject to gravity using a simple verlet int
 ## Goal
 The goal of the project is to leverage rust's speed and fearless concurrency to display as much colliding particles as possible.
 
+## Controls
+    - SPACE to spawn particles
+    - LEFT CTRL to increase the spawn rate
+    - ESC to close the program
+
 ## Progress
 - [x] Setup the project with the dependencies
 - [x] Display particle
@@ -16,6 +21,6 @@ The goal of the project is to leverage rust's speed and fearless concurrency to 
 - [x] Implement FPS and particles counter
 - [x] Implement spatial partition with an homogenous grid
 - [x] Implement multi-threading on collision solving
-- [ ] Solve instability problem
+- [x] Solve instability problem
 - [x] Add more control on particle volume spawn
   

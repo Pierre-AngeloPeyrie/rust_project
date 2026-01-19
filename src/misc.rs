@@ -21,7 +21,8 @@ mod tests {
 
     #[test]
     fn vec_range() {
-        println!("{:?}",gen_vec_range(2, 100));
-        assert!(true);
+        let ranges: Vec<Range<usize>> = gen_vec_range(3, 100);
+        println!("{:?}",ranges);
+        assert_eq!(ranges,vec![1..33, 33..66, 66..99]);
     }
 }

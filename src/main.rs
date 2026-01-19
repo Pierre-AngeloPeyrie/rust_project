@@ -12,32 +12,36 @@ use misc::{pos_win_from_rel,gen_vec_range};
 use std::sync::{Arc,RwLock,mpsc};
 use std::thread;
 
+const PARTICLES_RADIUS: f32 = 5.;
+const WINDOW_WIDTH: f32 = 1200.;
+const WINDOW_HEIGHT: f32 = 900.;
+const NUMBER_OF_THREADS: usize = 50;
+const CELL_SIZE: f32 = PARTICLES_RADIUS * 5.;
+const GRAVITY: Vec2 = Vec2::new(0., 300.);
+const SUB_STEPS: usize = 16;
+
 struct MainState {
     positions: Arc<RwLock<Vec<Vec2>>>,
     prev_positions: Vec<Vec2>,
-    gravity: Vec2,
-    particle_radius: f32,
     grid: Arc<RwLock<Grid>>,
     num_part_to_spawn : usize,
 }
 
 impl MainState {
-    fn new(ctx: &Context, part_radius: f32) -> GameResult<MainState> {
+    fn new(ctx: &Context) -> GameResult<MainState> {
         let s = MainState{
             positions: Arc::new(RwLock::new(Vec::new())),
             prev_positions: Vec::new(),
-            gravity: Vec2::new(0., 300.),
-            particle_radius: part_radius,
-            grid: Arc::new(RwLock::new(Grid::new(ctx.gfx.window().inner_size().width as f32, ctx.gfx.window().inner_size().height as f32, part_radius*5.),)),
+            grid: Arc::new(RwLock::new(Grid::new(ctx.gfx.window().inner_size().width as f32, ctx.gfx.window().inner_size().height as f32, CELL_SIZE),)),
             num_part_to_spawn: 1,
         };
         Ok(s)
     }
 
-    fn add_particle(&mut self, position: Vec2, number: usize){
+    fn add_particles(&mut self, position: Vec2, number: usize){
         for i in 0..number{
-            self.positions.write().unwrap().push(position + Vec2::new(0., self.particle_radius * 5. * (i as f32)));
-            self.prev_positions.push(position + Vec2::new(-3., -0.5) + Vec2::new(0., self.particle_radius * 5. * (i as f32)));
+            self.positions.write().unwrap().push(position + Vec2::new(0., PARTICLES_RADIUS * 5. * (i as f32)));
+            self.prev_positions.push(position + Vec2::new(-3., -0.5) + Vec2::new(0., PARTICLES_RADIUS * 5. * (i as f32)));
         }        
     }
 
@@ -46,18 +50,16 @@ impl MainState {
         for i in 0..self.prev_positions.len(){
             let velocity = (positions[i] - self.prev_positions[i]).clamp_length_max(1.5) ;
             self.prev_positions[i] = positions[i];
-            positions[i] += velocity + (self.gravity - 0.01* velocity) * dt * dt;
+            positions[i] += velocity + (GRAVITY - 0.01* velocity) * dt * dt;
         }        
     }
 
     fn collisions(&mut self){
         let (tx, rx) = mpsc::channel();
-        let n_threads = 100;
-        let mut ranges = gen_vec_range(n_threads, self.grid.read().unwrap().get_num_columns());
+        let mut ranges = gen_vec_range(NUMBER_OF_THREADS, self.grid.read().unwrap().get_num_columns());
 
-        for _ in 0..n_threads{
+        for _ in 0..NUMBER_OF_THREADS{
             let thread_tx = tx.clone();
-            let radius = self.particle_radius;
             let grid_ref = Arc::clone(&self.grid);
             let positions_ref = Arc::clone(&self.positions);
             let thread_range = ranges.pop().unwrap();
@@ -69,8 +71,8 @@ impl MainState {
                         for id2 in grid.get_cell(i + di - 1, j + dj - 1){ 
                             let collision_vector = positions[*id1] - positions[*id2];
                             let distance = collision_vector.length();
-                            if distance < 2.*radius && id1 != id2{
-                                let delta = (2.*radius - distance) * 0.25; // 0.25 because divided by two to move the two particles equally 
+                            if distance < 2.*PARTICLES_RADIUS && id1 != id2{
+                                let delta = (2.*PARTICLES_RADIUS - distance) * 0.25; // 0.25 because divided by two to move the two particles equally 
                                 let correction_vector = collision_vector/distance * delta; //and divided again bay two because the collision will be computed twice 
                                 thread_tx.send((*id1, *id2, correction_vector)).unwrap();
                             }
@@ -95,16 +97,16 @@ impl MainState {
         let mut positions = self.positions.write().unwrap();
 
         for i in 0..self.prev_positions.len(){     
-            if positions[i].x - self.particle_radius < 0.{
-                positions[i].x = self.particle_radius;
-            } else if positions[i].x  + self.particle_radius > win_width{
-                positions[i].x = win_width - self.particle_radius;
+            if positions[i].x - PARTICLES_RADIUS < 0.{
+                positions[i].x = PARTICLES_RADIUS;
+            } else if positions[i].x  + PARTICLES_RADIUS > win_width{
+                positions[i].x = win_width - PARTICLES_RADIUS;
             };
 
-            if positions[i].y - self.particle_radius < 0.{
-                positions[i].y = self.particle_radius;
-            }else if positions[i].y + self.particle_radius > win_height{
-                positions[i].y = win_height - self.particle_radius;
+            if positions[i].y - PARTICLES_RADIUS < 0.{
+                positions[i].y = PARTICLES_RADIUS;
+            }else if positions[i].y + PARTICLES_RADIUS > win_height{
+                positions[i].y = win_height - PARTICLES_RADIUS;
             };
         }
     }
@@ -114,9 +116,8 @@ impl event::EventHandler<ggez::GameError> for MainState {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
         let win_width = ctx.gfx.window().inner_size().width as f32;
         let win_height = ctx.gfx.window().inner_size().height as f32;  
-        let sub_steps = 8;
-        let sub_dt = ctx.time.delta().as_secs_f32()/(sub_steps as f32);
-        for _ in 0..sub_steps{           
+        let sub_dt = ctx.time.delta().as_secs_f32()/(SUB_STEPS as f32);
+        for _ in 0..SUB_STEPS{           
             self.update_positions(sub_dt);            
             self.constraint(win_width, win_height);
             self.grid.write().unwrap().update(&self.positions.read().unwrap());
@@ -136,7 +137,7 @@ impl event::EventHandler<ggez::GameError> for MainState {
             ctx,
             graphics::DrawMode::fill(),
             Vec2::new(0.0, 0.0),
-            self.particle_radius,
+            PARTICLES_RADIUS,
             0.1,
             Color::WHITE,
         )?;
@@ -160,7 +161,7 @@ impl event::EventHandler<ggez::GameError> for MainState {
                 Ok(())
             },
             Some(KeyCode::Space) =>{
-                self.add_particle(Vec2::new(100., 100.),self.num_part_to_spawn);
+                self.add_particles(pos_win_from_rel( ctx, 0.1, 0.1),self.num_part_to_spawn);
                 Ok(())
             },
             Some(KeyCode::LControl) =>{
@@ -174,8 +175,9 @@ impl event::EventHandler<ggez::GameError> for MainState {
 }
 
 pub fn main() -> GameResult {
-    let cb = ggez::ContextBuilder::new("super_simple", "ggez");
+    let cb = ggez::ContextBuilder::new("granular simulation ", "Peyrie Pierre-Angelo")
+      .window_mode(ggez::conf::WindowMode::default().dimensions(WINDOW_WIDTH, WINDOW_HEIGHT));
     let (ctx, event_loop) = cb.build()?;
-    let state = MainState::new(&ctx,2.)?;
+    let state = MainState::new(&ctx)?;
     event::run(ctx, event_loop, state)
 }
