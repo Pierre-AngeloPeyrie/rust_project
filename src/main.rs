@@ -13,15 +13,15 @@ use std::sync::{Arc,RwLock,mpsc};
 use std::thread;
 
 // Program constants
-const PARTICLES_RADIUS: f32 = 6.;
-const WINDOW_WIDTH: f32 = 1500.;
-const WINDOW_HEIGHT: f32 = 1000.;
-const NUMBER_OF_THREADS: usize = 20;
+const PARTICLES_RADIUS: f32 = 7.;
+const WINDOW_WIDTH: f32 = 1200.;
+const WINDOW_HEIGHT: f32 = 900.;
+const NUMBER_OF_THREADS: usize = 8;
 const CELL_SIZE: f32 = PARTICLES_RADIUS * 5.;
 const GRAVITY: Vec2 = Vec2::new(0., 300.);
-const SUB_STEPS: usize = 8;
+const SUB_STEPS: usize = 4;
 const SPAWN_OFFSET: Vec2 = Vec2::new(0., PARTICLES_RADIUS * 5.);
-const SPAWN_VELOCITY: Vec2 = Vec2::new(2., 0.5);
+const SPAWN_VELOCITY: Vec2 = Vec2::new(4., 0.);
 
 struct MainState {
     positions: Arc<RwLock<Vec<Vec2>>>,
@@ -51,7 +51,7 @@ impl MainState {
     fn update_positions(&mut self, dt: f32){
         let mut positions = self.positions.write().unwrap();
         for i in 0..self.prev_positions.len(){
-            let velocity = (positions[i] - self.prev_positions[i]).clamp_length_max(1.5); //necesssary clamp to avoid explosions
+            let velocity = (positions[i] - self.prev_positions[i]).clamp_length_max(4.); //necesssary clamp to avoid explosions
             self.prev_positions[i] = positions[i];
             positions[i] += velocity + GRAVITY * dt * dt;
         }        
